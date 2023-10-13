@@ -1,0 +1,389 @@
+---
+title: "Analisis de dato funcional\n Temperatura Región Piura"
+author: "Estadística Informática"
+date: "2023-06-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(fda)
+```
+
+## 1. Integración de datos
+
+**1.1 Lectura de las estaciones**
+
+```{r,comment=NA,fig.align='center',fig.width=6,fig.height=5}
+# Enumerando las estaciones
+L01<-read.table("Ayabaca.txt"); L01$estacion=1
+L02<-read.table("bernal.txt"); L02$estacion=2
+L03<-read.table("Chulucanas.txt"); L03$estacion=3
+L04<-read.table("Chusis.txt"); L04$estacion=4
+L05<-read.table("Hacienda Bigote.txt"); L05$estacion=5
+L06<-read.table("Hacienda Sumaya.txt"); L06$estacion=6
+L07<-read.table("Huarmaca.txt"); L07$estacion=7
+L08<-read.table("La esperanza.txt"); L08$estacion=8
+L09<-read.table("LANCONES.txt"); L09$estacion=9
+L10<-read.table("MALLARES.txt"); L10$estacion=10
+L11<-read.table("Miraflores.txt"); L11$estacion=11
+L12<-read.table("Morropon.txt"); L12$estacion=12
+L13<-read.table("pananga.txt"); L13$estacion=13
+L14<-read.table("Porculla.txt"); L14$estacion=14
+L15<-read.table("San Miguel.txt"); L15$estacion=15
+L16<-read.table("San Pedro.txt"); L16$estacion=16
+L17<-read.table("Sapillica.txt"); L17$estacion=17
+L18<-read.table("Sausal de Culucan.txt"); L18$estacion=18
+L19<-read.table("Sondorillo.txt"); L19$estacion=19
+L20<-read.table("Tuluce.txt"); L20$estacion=20
+
+
+# 1.2 Registro de años completos (12 meses)
+# captando informacion de todos los meses
+R01<-L01[(L01[,1]>=1963 & L01[,1]< 2014),]
+R02<-L02[(L02[,1]>=1964 & L02[,1]< 2014),]
+R03<-L03[(L03[,1]>=1972 & L03[,1]< 2014),]
+R04<-L04[(L04[,1]>=1964 & L04[,1]< 2014),]
+R05<-L05[(L05[,1]>=1964 & L05[,1]< 2014),]
+R06<-L06[(L06[,1]>=1964 & L06[,1]< 2014),]
+R07<-L07[(L07[,1]>=1964 & L07[,1]< 2014),]
+R08<-L08[(L08[,1]>=1967 & L08[,1]< 2014),]
+R09<-L09[(L09[,1]>=1964 & L09[,1]< 2014),]
+R10<-L10[(L10[,1]>=1961 & L10[,1]< 2014),]
+R11<-L11[(L11[,1]>=1972 & L11[,1]< 2014),]
+R12<-L12[(L12[,1]>=1964 & L12[,1]< 2014),]
+R13<-L13[(L13[,1]>=1964 & L13[,1]< 2014),]
+R14<-L14[(L14[,1]>=1966 & L14[,1]< 2014),]
+R15<-L15[(L15[,1]>=1973 & L15[,1]< 2014),]
+R16<-L16[(L16[,1]>=1975 & L16[,1]< 2014),]
+R17<-L17[(L17[,1]>=1964 & L17[,1]< 2014),]
+R18<-L18[(L18[,1]>=1963 & L18[,1]< 2014),]
+R19<-L19[(L19[,1]>=1964 & L19[,1]< 2014),]
+R20<-L20[(L20[,1]>=1964 & L20[,1]< 2014),]
+
+```
+
+
+**Acumulacion de todos los años por estación**
+
+```{r,comment=NA}
+# Juntando estaciones
+RR<-rbind(R01,R02,R03,R04,R05,R06,R07,R08,R09,R10,
+          R11,R12,R13,R14,R15,
+          R16,R17,R18,R19,R20)
+years<-c(51,50,42,50,50,50,51,48,50,53,
+         42,50,50,48,42,39,50,51,50,50)
+
+# Valor de temperatura ausente o negativo poner NA como valor ausente
+# “año”, “mes”, “dia”, “prec”, “tmax”, “tmin”
+z<-RR[,5]==-99.9 # Temperatura máxima
+RR[z,5]<-NA
+x<-RR[,6]==-99.9 # Temperatura minima
+RR[x,6]<-NA
+# Temperatura por meses y estacion
+AMR<-agricolae::tapply.stat(RR[,5:6],RR[,c(2,7)],function(x)mean(x,na.rm=TRUE))
+tmin <- matrix(AMR[,4],nrow=20,ncol=12)
+tmax <- matrix(AMR[,3],nrow=20,ncol=12)
+# transpuesta
+t(tmin) -> Tmin
+t(tmax) -> Tmax
+meses<-c("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic")
+rownames(Tmin)<-rownames(Tmax)<-meses
+colnames(Tmin)<-colnames(Tmax)<-paste("Est",1:20,sep="-")
+cat("Temperatura máxima\n")
+head(round(Tmax,0))
+cat("Temperatura minima\n")
+head(round(Tmin,0))
+```
+
+
+## 2. Análisis de datos funcional
+
+```{r,comment=NA,fig.width=6,fig.height=4}
+
+eliminar <- c(5,6,13,14,16,17,20)
+# Eliminar columnas con valores ausentes
+Tmax_snNA <- Tmax[, -eliminar]
+Tmin_snNA <- Tmin[, -eliminar]
+x11()
+op<-par(mfrow=c(1,2),cex=0.7)
+# FD fourier
+mesFourier <- create.fourier.basis(c(1,12),nbasis=13)
+fd2<-Data2fd(argvals=1:12,y=Tmax_snNA,basisobj=mesFourier)
+plot(fd2,main="Temperatura máxima funcional",xlab = "Meses", ylab = "Temperatura °C")
+fd1<-Data2fd(argvals=1:12,y=Tmin_snNA,basisobj=mesFourier)
+plot(fd1,main="Temperatura mínima funcional",xlab = "Meses", ylab = "Temperatura °C")
+par(op)
+```
+### 2.1 Base funcional para cada estación de Temperatura Máxima
+
+```{r,comment=NA,fig.width=5,fig.height=4}
+# Se crea la matriz de tiempo
+time <- 1:12  # Meses
+tramin <- t(Tmax_snNA)
+# Base funcional de Fourier
+mesFourier <- create.fourier.basis(c(1,12),nbasis=13)
+# Se crea los datos funcionales para cada estación
+fd_Tmax <- lapply(1:13, function(i) {
+  estacion_prec <- tramin[i, ]
+  fd <- Data2fd(argvals = time, y = estacion_prec, basisobj = mesFourier)
+  return(fd)
+})
+```
+
+
+**Gráfica de la tendencia funcional de cada estación**
+
+```{r,comment=NA,fig.width=5,fig.height=4}
+# Vector con los nombres de las estaciones
+estaciones <- c("Ayabaca", "bernal", "Chulucanas", "Chusis", "Huarmaca", "La esperanza", "Lancones", "Mallares", "Miraflores", "Morropon","San Miguel", "Sausal de Culucan","Sondorillo")
+
+# Graficar los datos funcionales de todas las estaciones con nombres
+par(mfrow = c(5, 4), mar = c(2, 2, 2, 1))
+for (i in 1:13) {
+  plot(fd_Tmax[[i]], main =estaciones[i],
+       xlab = "Meses", ylab = "Temperatura °C",
+       col = "orange")
+}
+
+```
+
+
+
+### 2.2 Base funcional para cada estación de Temperatura Mínima
+
+```{r,comment=NA,fig.width=5,fig.height=4}
+# Se crea la matriz de tiempo
+time <- 1:12  # Meses
+
+tramin <- t(Tmin_snNA)
+# Base funcional de Fourier
+mesFourier <- create.fourier.basis(c(1,12),nbasis=13)
+
+# Se crea los datos funcionales para cada estación
+fd_Tmin <- lapply(1:13, function(i) {
+  estacion_prec <- tramin[i, ]
+  fd <- Data2fd(argvals = time, y = estacion_prec, basisobj = mesFourier)
+  return(fd)
+})
+```
+
+
+**Gráfica de la tendencia funcional de cada estación**
+
+```{r,comment=NA,fig.width=5,fig.height=4}
+# Vector con los nombres de las estaciones
+estaciones <- c("Ayabaca", "bernal", "Chulucanas", "Chusis", "Huarmaca", "La esperanza", "Lancones", "Mallares", "Miraflores", "Morropon","San Miguel", "Sausal de Culucan","Sondorillo")
+
+# Graficar los datos funcionales de todas las estaciones con nombres
+par(mfrow = c(5, 4), mar = c(2, 2, 2, 1))
+for (i in 1:13) {
+  plot(fd_Tmin[[i]], main =estaciones[i],
+       xlab = "Meses", ylab = "Temperatura °C",
+       col = "blue")
+}
+
+```
+
+
+
+### 2.3 Temperatura media funcional
+
+```{r,comment=NA,fig.width=5,fig.height=4}
+op<-par(mfrow=c(1,1),cex=0.8)
+mfd1<-mean.fd(fd1)
+mfd2<-mean.fd(fd2)
+plot(mfd2,axes=F,xlab="Meses",ylab="Temperatura °C",main="Media funcional región Piura, 13 estaciones",ylim=c(0,32))
+lines(mfd1,col="brown")
+legend("bottom",c("Temperatura maxima","Temperatura minima"),lty=1,col=c("black","brown"),box.col = "white")
+axis(1,1:12,meses)
+axis(2)
+grid(nx=25,col=4)
+par(op)
+```
+
+### 2.4 Variación funcional
+
+```{r,comment=NA}
+sfd1<-sd.fd(fd1) # temperatura minima
+sfd2<-sd.fd(fd2) # temperatura máxima
+plot(sfd2,axes=F,xlab="Meses",ylab="Temperatura °C",ylim=c(1,10),
+     main="Región Piura, 13 estaciones\nVariación funcional")
+lines(sfd1,col="brown")
+legend("topleft",c("Temperatura máxima","Temperatura mínima"),lty=1,col=c("black","brown"),box.col = "white")
+axis(1,1:12,meses)
+axis(2)
+grid(nx=25,col="cyan")
+```
+
+
+### 2.5 Correlación funcional de la temperatura máxima mensual durante el año
+
+```{r,comment=NA}
+corT <- cor.fd(seq(1,12), fd2)
+print(round(corT,2))
+contour(1:12,1:12,corT,nlevels = 12,labcex = 1,xlab="meses",ylab="meses", col=colors()[c(10,22,45,30,55,65,75,85,95,105,115,125,136)],main="Región Piura\nCorrelación funcional",cex.main=1,axes=FALSE)
+axis(1,1:12,meses)
+axis(2,1:12,meses)
+
+# colores estaciones
+```
+
+
+### 2.6 Cambios de la precipitación en el año: velocidad funcional
+
+Se estudia el cambio de la temperatura maxima en el transcurso del año en la region Ica.
+
+```{r,comment=NA}
+dfd2<-deriv.fd(mfd2)
+plot(dfd2,axes=F,xlab="Meses",col="blue",
+     main="Region Piura, 13 estaciones\nVelocidad de cambio en el año")
+axis(1,1:12,meses)
+axis(2)
+```
+
+
+## 3. Análisis funcional de la temperatura a lo largo de los 50 años
+
+
+```{r,comment=NA}
+AR<-agricolae::tapply.stat(RR[,5:6],RR[,c(7,1)],function(x) mean(x,na.rm=TRUE))
+names(AR)<-c("estacion","periodo","tmax","tmin")
+head(AR)
+```
+
+
+### 3.1 Años completos 1986 al 2013: 28 años y 6 estaciones**
+
+```{r,comment=NA}
+AR<-subset(AR,periodo>=1975 & periodo < 2014)
+
+```
+
+### 3.2 Construcción de datos funcionales
+
+Utilizando la base Fourier con 9 términos y el efecto sin Fourier.
+
+
+```{r,comment=NA,fig.align='center',fig.width=7,fig.height=5,echo=FALSE}
+op<-par(mfrow=c(1,2),cex=0.8)
+MAR1<-matrix(AR$tmax,nrow=39,ncol=20)
+MAR2<-matrix(AR$tmin,nrow=39,ncol=20)
+colnames(MAR1)<-colnames(MAR2)<-paste("Est",1:20,sep="-")
+rownames(MAR1)<-rownames(MAR2)<-1975:2013
+eliminartemp <- c(2,5,6,9,13,14,16,17,19,20)
+# Eliminar columnas con valores ausentes
+MAR1_snNA <- MAR1[, -eliminartemp]
+MAR2_snNA <- MAR2[, -eliminartemp]
+# Reemplazando algunos valores faltantes
+MAR1_snNA[12, 3] <- 28.20656 #temp máx
+MAR1_snNA[17, 2] <- 32.62447
+MAR1_snNA[18, 2] <- 31.66098
+MAR1_snNA[19, 2] <- 32.75842
+MAR1_snNA[20, 2] <- 30.98712
+MAR1_snNA[21, 2] <- 33.21227
+
+MAR2_snNA[12, 3] <- 18.62656
+MAR2_snNA[17, 2] <- 19.95356
+MAR2_snNA[18, 2] <- 18.38362
+MAR2_snNA[19, 2] <- 17.63659
+MAR2_snNA[20, 2] <- 21.59524
+MAR2_snNA[21, 2] <- 17.18289
+
+```
+
+
+```{r,comment=NA,fig.align='center',fig.width=7,fig.height=5}
+yearFourier <- create.fourier.basis(c(1975,2013),nbasis=9)
+fd1<-Data2fd(argvals=1975:2013,y=MAR1_snNA,basisobj=yearFourier)
+mfd1<-mean.fd(fd1)
+fd2<-Data2fd(argvals=1975:2013,y=MAR2_snNA,basisobj=yearFourier)
+mfd2<-mean.fd(fd2)
+plot(mfd1,axes=F,main="Temperatura máxima funcional anual\nEfecto de la sequía",xlab="Años",ylab="Temperatura °C" )
+axis(1,1975:2013)
+axis(2)
+abline(v=c(1989,1999),lty=4,lwd=2,col="blue")
+abline(v=1994,lty=4,lwd=2,col="orange")
+par(op)
+```
+
+
+```{r,comment=NA,fig.align='center',fig.width=7,fig.height=5}
+plot(mfd2,axes=F,main="Temperatura mínima funcional anual\nEfecto de la sequía",xlab="Años",ylab="Temperatura °C" )
+axis(1,1975:2013)
+axis(2)
+abline(v=c(1989,1997),lty=4,lwd=2,col="blue")
+abline(v=1993,lty=4,lwd=2,col="orange")
+par(op)
+```
+
+
+### 3.3 Cambios en la temperatura anual: velocidad funcional
+
+**Detección del fenómeno del niño a través de cambio en la velocidad de crecimiento de la temperatura.**
+
+METODO: **DERIVADA FUNCIONAL** aplicada a la temperatura funcional de la region de Piura. 
+```
+dfd1<-deriv.fd(mfd1)
+plot(dfd1,axes=F,xlab="Años",col="green",
+     main="Region Piura Velocidad de cambio\n en la temperatura a través del tiempo")
+axis(1,1975:2013)
+axis(2)
+```
+
+```{r,comment=NA,echo=FALSE}
+op<-par(cex=0.7)
+dfd1<-deriv.fd(mfd1)
+plot(dfd1,axes=F,xlab="Años",col="green",
+     main="Region Piura Velocidad de cambio\n en la temperatura máxima a través del tiempo")
+axis(1,1975:2013)
+axis(2)
+abline(v=c(1994,2000.8),lty=4,lwd=2,col="blue")
+abline(v=1997,lty=4,lwd=2,col="orange")
+text(1989,-0.12, "Fenomeno del \nniño agosto 1997")
+text(1990,-0.05, "Decrecimiento de \ntemperatura entre \n1994 y agosto 1997")
+text(2007,-0.07, "Crecimiento de \ntemperatura entre \n 1997 y 2001")
+
+arrows(1990,-0.14,1996.8,-0.15,length = 0.2,angle = 10,lwd=1.5)
+arrows(2003.8,-0.08,1999,-0.09,length = 0.2,angle = 10,lwd=1.5)
+arrows(1990.1,-0.08,1995.4,-0.1,length = 0.2,angle = 10,lwd=1.5)
+par(op)
+```
+
+
+
+```
+dfd2<-deriv.fd(mfd2)
+plot(dfd2,axes=F,xlab="Años",col="green",
+     main="Región Piura Velocidad de cambio\n en la temperatura mínima a través del tiempo")
+axis(1,1975:2013)
+axis(2)
+```
+
+```{r,comment=NA,echo=FALSE}
+op<-par(cex=0.7)
+dfd2<-deriv.fd(mfd2)
+plot(dfd2,axes=F,xlab="Años",col="green",
+     main="Región Piura Velocidad de cambio\n en la temperatura mínima a través del tiempo")
+axis(1,1975:2013)
+axis(2)
+abline(v=c(1994,2000.8),lty=4,lwd=2,col="blue")
+abline(v=1997,lty=4,lwd=2,col="orange")
+text(1990,-0.16, "Punto de inflexión \nFenomeno del \nniño 1997")
+text(1990,-0.05, "Mínimo local \nen 1994 (enfriamiento)")
+text(2007,-0.08, "Máximo local \nen 2000 (calentamiento)")
+
+arrows(1990,-0.14,1996.8,-0.08,length = 0.2,angle = 10,lwd=1.5)
+arrows(2003,-0.08,1999.8,0.02,length = 0.2,angle = 10,lwd=1.5)
+arrows(1990.1,-0.08,1995.4,-0.12,length = 0.2,angle = 10,lwd=1.5)
+par(op)
+```
+
+
+
+
+
+
+
+
+

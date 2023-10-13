@@ -1,0 +1,425 @@
+---
+title: "Análisis de dato funcional Precipitación Región Piura"
+author: "Estadística Informática"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(fda)
+```
+
+# Obtención de los registros meteorológicos del SENAMHI
+
+La captura de datos fueron obtenidos de la pagina correspondiente a la descarga del SENAMHI.
+
+
+<center>
+![Figure 1: Región Piura](piuraa.jpg){width="800"}</center>
+
+<center>
+![Figure 2: Estación Ayabaca ](estacion_ayabaca.jpg){}</center>
+
+
+**Información registrada**
+
+“año”, “mes”, “dia”, “prec”, “tmax”, “tmin”
+
+## 1. Integración de datos
+
+### 1.1 Lectura de las estaciones
+
+
+```{r,comment=NA,fig.align='center',fig.width=6,fig.height=5}
+# Enumerando las estaciones
+L01<-read.table("Ayabaca.txt"); L01$estacion=1
+L02<-read.table("bernal.txt"); L02$estacion=2
+L03<-read.table("Chulucanas.txt"); L03$estacion=3
+L04<-read.table("Chusis.txt"); L04$estacion=4
+L05<-read.table("Hacienda Bigote.txt"); L05$estacion=5
+L06<-read.table("Hacienda Sumaya.txt"); L06$estacion=6
+L07<-read.table("Huarmaca.txt"); L07$estacion=7
+L08<-read.table("La esperanza.txt"); L08$estacion=8
+L09<-read.table("LANCONES.txt"); L09$estacion=9
+L10<-read.table("MALLARES.txt"); L10$estacion=10
+L11<-read.table("Miraflores.txt"); L11$estacion=11
+L12<-read.table("Morropon.txt"); L12$estacion=12
+L13<-read.table("pananga.txt"); L13$estacion=13
+L14<-read.table("Porculla.txt"); L14$estacion=14
+L15<-read.table("San Miguel.txt"); L15$estacion=15
+L16<-read.table("San Pedro.txt"); L16$estacion=16
+L17<-read.table("Sapillica.txt"); L17$estacion=17
+L18<-read.table("Sausal de Culucan.txt"); L18$estacion=18
+L19<-read.table("Sondorillo.txt"); L19$estacion=19
+L20<-read.table("Tuluce.txt"); L20$estacion=20
+```
+
+
+**Estación Ayabaca**
+
+```{r,comment=NA}
+head(L01,21)
+```
+
+### 1.2 Verificación de los rangos de años de información
+
+```{r,comment=NA}
+range(L01[,1])
+```
+
+```
+range(L02[,1])
+range(L03[,1])
+range(L04[,1])
+range(L05[,1])
+range(L06[,1])
+range(L07[,1])
+range(L08[,1])
+range(L09[,1])
+range(L10[,1])
+range(L11[,1])
+range(L12[,1])
+range(L13[,1])
+range(L14[,1])
+range(L15[,1])
+range(L16[,1])
+range(L17[,1])
+range(L18[,1])
+range(L19[,1])
+range(L20[,1])
+```
+
+### 1.3 Búsqueda de años completos (12 meses)
+
+```{r,comment=NA}
+table(L01[,1]) # 1963-2013 51 años
+```
+
+```
+table(L02[,1]) # 1964-2013 50 años
+table(L03[,1]) # 1972-2013 42 años
+table(L04[,1]) # 1964-2013 50 años
+table(L05[,1]) # 1964-2013 50 años
+table(L06[,1]) # 1964-2013 50 años
+table(L07[,1]) # 1964-2014 51 años
+table(L08[,1]) # 1967-2014 48 años
+table(L09[,1]) # 1964-2013 50 años
+table(L10[,1]) # 1961-2013 53 años
+table(L11[,1]) # 1972-2013 42 años
+table(L12[,1]) # 1964-2013 50 años 
+table(L13[,1]) # 1964-2013 50 años
+table(L14[,1]) # 1966-2013 48 años
+table(L15[,1]) # 1973-2014 42 años
+table(L16[,1]) # 1975-2013 39 años
+table(L17[,1]) # 1964-2013 50 años
+table(L18[,1]) # 1963-2013 51 años
+table(L19[,1]) # 1964-2013 50 años
+table(L20[,1]) # 1964-2013 50 años
+```
+
+### 1.4 Registro de años completos (12 meses)
+
+```{r,comment=NA}
+# captando informacion de todos los meses
+R01<-L01[(L01[,1]>=1963 & L01[,1]< 2014),]
+R02<-L02[(L02[,1]>=1964 & L02[,1]< 2014),]
+R03<-L03[(L03[,1]>=1972 & L03[,1]< 2014),]
+R04<-L04[(L04[,1]>=1964 & L04[,1]< 2014),]
+R05<-L05[(L05[,1]>=1964 & L05[,1]< 2014),]
+R06<-L06[(L06[,1]>=1964 & L06[,1]< 2014),]
+R07<-L07[(L07[,1]>=1964 & L07[,1]< 2014),]
+R08<-L08[(L08[,1]>=1967 & L08[,1]< 2014),]
+R09<-L09[(L09[,1]>=1964 & L09[,1]< 2014),]
+R10<-L10[(L10[,1]>=1961 & L10[,1]< 2014),]
+R11<-L11[(L11[,1]>=1972 & L11[,1]< 2014),]
+R12<-L12[(L12[,1]>=1964 & L12[,1]< 2014),]
+R13<-L13[(L13[,1]>=1964 & L13[,1]< 2014),]
+R14<-L14[(L14[,1]>=1966 & L14[,1]< 2014),]
+R15<-L15[(L15[,1]>=1973 & L15[,1]< 2014),]
+R16<-L16[(L16[,1]>=1975 & L16[,1]< 2014),]
+R17<-L17[(L17[,1]>=1964 & L17[,1]< 2014),]
+R18<-L18[(L18[,1]>=1963 & L18[,1]< 2014),]
+R19<-L19[(L19[,1]>=1964 & L19[,1]< 2014),]
+R20<-L20[(L20[,1]>=1964 & L20[,1]< 2014),]
+```
+
+
+### 1.5 Acumulación de todos los años por estación
+
+```{r,comment=NA}
+# Juntando estaciones
+RR<-rbind(R01,R02,R03,R04,R05,R06,R07,R08,R09,R10,
+          R11,R12,R13,R14,R15,
+          R16,R17,R18,R19,R20)
+
+years<-c(51,50,42,50,50,50,51,48,50,53,
+         42,50,50,48,42,39,50,51,50,50)
+
+# Precipitación ausente 0 o negativo se pone cero de precipitación
+z<-is.na(RR[,4])
+RR[z,4]<-0
+x<-RR[,4]<0
+RR[x,4]<-0
+
+
+# Acumular la precipitación por meses y estación
+AMR<-agricolae::tapply.stat(RR[,4],RR[,c(2,7)],sum)
+
+# Promedio mensual segun los años acumulado
+precipitacion=AMR[,3]/years
+```
+
+```{r,comment=NA}
+prec <- matrix(precipitacion,nrow=20, # estaciones
+               ncol=12) # meses
+
+meses<-c("Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic")
+
+colnames(prec)<-meses
+rownames(prec)<-paste("Est",1:20,sep="-")
+Tprec<-t(prec)
+print(round(Tprec,0))
+```
+
+
+## 2. Análisis de datos funcional
+
+
+### 2.1 Base funcional para las 20 estaciones
+
+```{r,comment=NA}
+# Base funcional de Fourier
+mesFourier <- create.fourier.basis(c(1,12),
+                                   nbasis=19) # número de funciones de base que se utilizán en la representación funcional de los datos.
+
+fd<-Data2fd(argvals=1:12,y= Tprec, basisobj = mesFourier)
+
+# Gráfica
+plot(fd,axes=F,xlab="Meses",ylab="Precipitación mm/mes",main="Region Piura, 20 estaciones")
+axis(1,1:12,meses)
+axis(2)
+grid(nx=25,col=4)
+```
+
+
+### 2.2 Base funcional para cada estación
+
+```{r,comment=NA}
+# Se crea la matriz de tiempo
+time <- 1:12  # Meses
+
+
+# Base funcional de Fourier
+fourier_basis <- create.fourier.basis(c(1, 12), nbasis = 19)
+
+# Se crea los datos funcionales para cada estación
+fd_list <- lapply(1:20, function(i) {
+  estacion_prec <- prec[i, ]
+  fd <- Data2fd(argvals = time, y = estacion_prec, basisobj = fourier_basis)
+  return(fd)
+})
+```
+
+**Gráfica de la tendencia funcional de cada estación**
+
+```{r,comment=NA}
+# Vector con los nombres de las estaciones
+estaciones <- c("Ayabaca", "bernal", "Chulucanas", "Chusis", "Hacienda Bigote", 
+                "Hacienda Sumaya", "Huarmaca", "La esperanza", "Lancones", 
+                "Mallares", "Miraflores", "Morropon", "Pananga", "Porculla",
+                "San Miguel", "San Pedro", "Sapillica", "Sausal de Culucan",
+                "Sondorillo", "Tuluce")
+
+# Graficar los datos funcionales de todas las estaciones con nombres
+
+par(mfrow = c(5, 4), mar = c(2, 2, 2, 1))
+for (i in 1:20) {
+  plot(fd_list[[i]], main = estaciones[i],
+       xlab = "Meses", ylab = "Precipitación mm/mes",
+       col = "blue")
+}
+```
+
+
+
+### 2.3 Media funcional
+
+```{r,comment=NA}
+mfd<-mean.fd(fd)
+plot(mfd,axes=F,xlab="Meses",ylab="Precipitación mm/mes",
+     main="Region Piura, 20 estaciones\nMedia funcional")
+axis(1,1:12,meses)
+axis(2)
+grid(nx=25,col=4)
+```
+
+### 2.4 Variación funcional
+
+```{r,comment=NA}
+sfd<-sd.fd(fd)
+plot(sfd,axes=F,xlab="Meses",ylab="Precipitación mm/mes",
+     main="Region Piura, 12 estaciones\nVariacion funcional")
+axis(1,1:12,meses)
+axis(2)
+grid(nx=25,col="cyan")
+```
+
+
+### 2.5 Correlación funcional de la precipitación mensual durante el año**
+
+```{r,comment=NA}
+corP <- cor.fd(seq(1,12), fd)
+print(round(corP,2))
+```
+
+
+```{r,comment=NA}
+contour(1:12,1:12,corP,nlevels = 20,labcex = 1,xlab="meses",ylab="meses", col=colors()[c(10,22,45,30,55,65,75,85,95,105,115,125,136,217,370,385,398,419455,655)],main="Region Piura\nCorrelación funcional",cex.main=1,axes=FALSE)
+
+# Agregar etiquetas de ejes
+axis(1,1:12,meses)
+axis(2,1:12,meses)
+
+# Agregar cuadrícula de referencia
+abline(v = 1:20, h = 1:20, col = "gray", lty = "dotted")
+```
+
+
+
+### 2.6 Cambios de la precipitación en el año: velocidad funcional
+
+Se estudia el cambio de la precipitación en el transcurso del año en la region de Piura.
+
+```{r,comment=NA}
+dfd<-deriv.fd(mfd)
+plot(dfd,axes=F,xlab="Meses",col="blue",
+     main="Region Piura, 12 estaciones\nVelocidad de cambio en el año")
+axis(1,1:12,meses)
+axis(2)
+```
+
+## 3. Análisis funcional a lo largo de los 50 años
+
+
+```{r,comment=NA}
+AR<-agricolae::tapply.stat(RR[,4],RR[,c(7,1)],sum)
+names(AR)<-c("estacion","periodo","precipitacion")
+head(table(AR[,2:1]))
+tail(table(AR[,2:1]))
+```
+
+### 3.1 Años completos 1989 al 2013: 39 años
+
+```{r,comment=NA}
+AR<-subset(AR,periodo>=1975 & periodo < 2014)
+head(AR)
+```
+
+### 3.2 Construcción de datos funcionales
+
+Utilizando la base Fourier con 19 terminos y el efecto sin Fourier.
+
+```{r,comment=NA,fig.align='center',fig.width=6,fig.height=5}
+MAR<-matrix(AR$precipitacion,nrow=39, # años
+            ncol=20) # estaciones
+colnames(MAR)<-paste("Est",1:20,sep="-")
+rownames(MAR)<-1975:2013
+
+# Base funcional de Fourier
+yearFourier <- create.fourier.basis(c(1975,2013),nbasis=19)
+fd<-Data2fd(argvals=1975:2013,y=MAR,basisobj=yearFourier)
+
+# Base funcional B-spline
+fd1<-Data2fd(argvals=1975:2013,y=MAR)
+
+```
+
+
+```{r,comment=NA,fig.align='center',fig.width=6,fig.height=5}
+mfd<-mean.fd(fd) # Media funcional fourier
+mfd1<-mean.fd(fd1) # Media funcional B-spline
+plot(mfd1,axes=F,main="Media funcional de la precipitacion anual\nEfecto del fenomeno del  niño",xlab="Años",ylab="Precipitación mm" )
+lines(mfd,col=2)
+axis(1,1975:2013);axis(2)
+legend("topright",c("B-spline","Fourier"),col=1:2,lty=1)
+abline(v=c(1996,1999.8),lty=4,lwd=2,col="blue")
+abline(v=1998,lty=4,lwd=2,col="orange")
+
+abline(v=c(1981,1985),lty=4,lwd=2,col="blue")
+abline(v=1982.9,lty=4,lwd=2,col="orange")
+```
+
+### 3.3 Cambios de la precipitación entre años: velocidad funcional
+
+**Detección del fenómeno del niño a través de cambio en la velocidad de crecimiento de la precipitación.**
+
+
+METODO: **DERIVADA FUNCIONAL** aplicada a la precipitación funcional de la región de PIURA. 
+
+```
+dfd<-deriv.fd(mfd)
+plot(dfd,axes=F,xlab="Años",col="green",
+     main="Region Piura Velocidad de cambio\n en la precipitación a través del tiempo")
+axis(1,1989:2013)
+axis(2)
+```
+```{r,comment=NA,echo=FALSE,message=F}
+dfd<-deriv.fd(mfd)
+plot(dfd,axes=F,xlab="Años",col="green",
+     main="Region Piura Velocidad de cambio\n en la precipitación a través del tiempo")
+axis(1,1975:2013)
+axis(2)
+
+abline(v=c(1995,1999.8),lty=4,lwd=2,col="blue")
+abline(v=1996.7,lty=4,lwd=2,col="orange")
+
+# Anotaciones
+text(2006.5,490, "Fenómeno del niño 1997")
+text(2007,360, "Crecimiento de lluvia\nentre 1995 y agosto 1997")
+text(2007,-300, "Decrecimiento de lluvia\nentre agosto 1997 y 2001")
+
+# Flechas
+arrows(2007,460,1996.7,450,length = 0.2,angle = 10,lwd=1.5)
+arrows(2007,280,1995.4,120,length = 0.2,angle = 10,lwd=1.5)
+arrows(2001.2,-300,1998,120,length = 0.2,angle = 10,lwd=1.5)
+#---------------
+abline(v=c(1980,1984),lty=4,lwd=2,col="blue")
+abline(v=1981.9,lty=4,lwd=2,col="orange")
+
+# Anotaciones
+text(1991.3,450, "Fenómeno del \nniño 1982")
+
+# Flechas
+arrows(1989,370,1982,490,length = 0.2,angle = 10,lwd=1.5)
+```
+
+Sequías (baja precipitación)
+
+```{r,comment=NA,echo=FALSE,message=F}
+plot(dfd,axes=F,xlab="Años",col="green",
+     main="Region Piura Velocidad de cambio\n en la precipitación a través del tiempo")
+axis(1,1975:2013)
+axis(2)
+
+#abline(v=c(1987,1991.2),lty=4,lwd=2,col="blue")
+abline(v=1989.4,lty=4,lwd=2,col="orange")
+
+# Anotaciones
+text(2007,-370, "Sequía en \nel período \n1993-1996")
+
+
+# Flechas
+arrows(2003,-370,1994.5,-290,length = 0.2,angle = 10,lwd=1.5)
+
+#---------------
+#abline(v=c(1992,1996.9),lty=4,lwd=2,col="blue")
+abline(v=1994,lty=4,lwd=2,col="orange")
+
+# Anotaciones
+text(1979.3,-260.9, "Sequía en \nel período \n1990-1991")
+
+# Flechas
+arrows(1983,-270,1989.4,-260,length = 0.2,angle = 10,lwd=1.5)
+```
+
+

@@ -1,0 +1,817 @@
+---
+title: "Estudio de la correlación espacial en Piura"
+output: html_document
+
+---
+
+
+<center>
+![Region Piura](piura.png){width="300"}</center>
+
+
+
+```{r,echo = T, warning=F, message=F}
+# Paquetes   
+library(pacman)  
+p_load(RgoogleMaps, spdep,ggmap,
+       dplyr,tidyr,knitr,kableExtra, ggplot2,algothemes,
+       DT,DataExplorer,ggthemes)
+
+```
+
+# Importación de datos
+
+## Descripción de variables
+
+| **Variable** | **Descripción** |
+|:---|:---:|
+| **Localidad** | Lugar donde se encuentra la estación meteorológica. |
+| **Latitud** | La latitud proporciona información sobre la posición relativa de un lugar en la Tierra. Permite localizar puntos en los hemisferios norte o sur, indicando qué tan cerca o lejos están del ecuador.|
+| **Longitud** | Representa la distancia angular medida hacia el este o hacia el oeste desde el meridiano de referencia.|
+| **Altitud** | Es una medida vertical que indica la distancia vertical entre un punto en la superficie de la Tierra y un punto de referencia, generalmente el nivel del mar.|
+| **Precipitación** | Es el resultado de la condensación del vapor de agua en la atmósfera y su posterior enfriamiento y formación de nubes. Las nubes se forman cuando el aire caliente y húmedo se eleva, se enfría y el vapor de agua se condensa en gotas o cristales de hielo. Estas gotas o cristales se agrupan para formar nubes y, cuando alcanzan un tamaño suficiente, caen a la superficie como precipitación.|
+
+```{r,comment=NA,fig.align='center',fig.width=6,fig.height=5}
+# Lectura de los datos
+estudio<-read.csv("Piura.csv",sep=";")
+
+datos1 <- estudio[0:10,]
+datos1 %>%
+  kbl() %>%
+  kable_paper("hover", full_width = T)%>%
+  row_spec(0, bold=T, color="black", background="#96CDCD")
+```
+
+# 1. Preparación del mapa
+
+Se prepara el mapa utilizando la función **GetMap()** de la biblioteca **ggmap**. Primero, se extraen las columnas 3 y 4 que contienen las coordenadas de longitud y latitud respectivamente y luego se combinan en una matriz utilizando cbind(). 
+Luego, se calcula el centro del mapa tomando la media de las coordenadas de longitud y latitud. Se especifica un nivel de zoom de 8 y se utiliza el tipo de mapa "satellite" (satélite). Finalmente, se obtiene el mapa utilizando la función **GetMap()** y se almacena en el objeto MyMap.
+
+
+```{r,comment=NA,fig.align='center',fig.width=6,fig.height=5}
+
+estudio<-read.csv("Piura.csv",sep=";")
+# prepara el mapa
+coords<-cbind(estudio[,c(3,4)])
+#coords
+center = c(mean(coords[,1]), mean(coords[,2]))
+zoom<-8
+MyMap <- GetMap(center=center, zoom=zoom, sensor=TRUE, maptype = "satellite")
+
+```
+
+
+# 2. Conversión de coordenadas
+
+Se convierten las coordenadas geográficas a coordenadas XY  con la función **LatLon2XY.centered()**  en relación con el mapa. Las coordenadas XY resultantes se almacenan en el objeto "puntos" el cual se va a utilizar posteriormente para trazar puntos en el mapa.
+
+```{r,comment=NA,fig.align='center',fig.width=6,fig.height=5}
+LatLon<-LatLon2XY.centered(MyMap, coords[,1],coords[,2],zoom=zoom)
+#head(LatLon)
+puntos<-cbind(LatLon[[1]],LatLon[[2]])
+```
+
+# 3. Superposición del modelo en el mapa utilizando el modelo del vecino relativo 
+
+```{r,comment=NA,fig.align='center',fig.width=6,fig.height=5}
+# PRESENTA EL MAPA
+par(cex=0.7) # ajusta el tamaño de las etiquetas y los puntos en el gráfico
+
+PlotOnStaticMap(MyMap,mar = c(4, 4, 2, 2),axes = TRUE)
+
+# DETERMINA EL MODELO ESPACIAL
+rel <- graph2nb(# convierte la matriz en un objeto de vecindad
+relativeneigh(puntos),  # Se crea un modelo espacial utilizando el modelo del vecino relativo
+                sym=TRUE) # indica que se desea que la vecindad sea simétrica
+
+# SUPERPONE EL MODELO EN EL MAPA
+plot(rel,puntos, col="red",add=TRUE,lwd=3,cex=2) # La función traza los vecinos en el gráfico utilizando el objeto de vecindad "rel" y las coordenadas XY en "puntos".
+title(main="Modelo del vecino relativo",col.main="blue")
+```
+
+
+## 3.1. Creación del objeto de vecindad ponderada
+
+Se calcula los pesos ponderados correspondientes a la estructura de vecindad definida por el modelo de vecino relativo. Estos pesos ponderados se utilizan luego en el cálculo del índice de Moran para cuantificar la intensidad de la autocorrelación espacial entre las observaciones.
+
+```{r,comment=NA,fig.align='center',fig.width=6,fig.height=5}
+nb1 <- nb2listw(rel,style="B")
+```
+
+## 3.2. Análisis de correlación espacial con el índice de Moran
+
+Se realiza el análisis de correlación espacial utilizando la función **moran.test()** de la biblioteca **spdep**. Se analiza la columna de "precipitación" del objeto estudio.
+
+```{r,comment=NA,fig.align='center',fig.width=6,fig.height=5}
+out<-moran.test(estudio[,6], nb1)
+print(out)
+```
+
+- El valor del estadístico Moran es 2.6479, este valor representa la medida de autocorrelación espacial entre los valores de la variable analizada (precipitación). El valor positivo indica una autocorrelación espacial positiva, lo que implica que las observaciones similares tienden a agruparse juntas en el espacio.
+
+- El p-valor es 0.004049, como es menor al nivel de significación de 0.05, se concluye que hay suficiente evidencia estadística para afirmar que existe una autocorrelación espacial mayor de lo esperado en comparación con una distribución espacial aleatoria.
+
+En conclusión, el resultado indica que hay evidencia significativa de autocorrelación espacial positiva en los datos analizados, lo que implica que las observaciones similares tienden a estar agrupadas espacialmente.
+
+# 4. Modelos de correlación espacial 
+
+## 4.1. Modelo vecino más cercano
+
+El modelo de vecino más cercano define las relaciones de vecindad entre las observaciones. Las líneas en el gráfico representan las conexiones entre los vecinos más cercanos. Los números en el gráfico corresponden a las observaciones individuales.En este caso, los números epresentan las estaciones. 
+
+
+**Gráfico**
+ 
+```{r,comment=NA,fig.align='center',fig.width=6,fig.height=5}
+plot(coords[,2],coords[,1],xlab="Longitude",ylab="Latitude",cex=0,las=1,bty="l")
+# Grafico del modelo Vecino mas cercano
+coords<-as.matrix(coords[,2:1])
+col.rel <- graph2nb(relativeneigh(coords), sym=TRUE)
+plot(col.rel,coords,add=TRUE,col=3,cex=0.01)
+text(coords[,1],coords[,2],1:20,cex=1)
+title(main="Relative Neighbor Graph")
+```
+
+### 4.1.1. Definición de la matriz de pesos
+
+```{r,comment=NA,fig.align='center',fig.width=6,fig.height=5}
+x<-estudio$precipitacion
+
+W<-rep(0,20*20) # se crea una matriz de pesos W inicializada con ceros, con dimensiones de 20x20
+dim(W)<-c(20,20)
+
+# Se asignan valores de 1 a las ubicaciones de la matriz W que representan conexiones entre observaciones vecinas.
+W[1,18]<-1;W[14,7]<-1;W[4,2]<-1;W[8,10]<-1;W[13,9]<-1
+W[7,14]<-1;W[7,20]<-1
+W[20,7]<-1;W[20,6]<-1
+W[6,20]<-1;W[6,19]<-1
+W[19,6]<-1;W[19,5]<-1
+W[5,19]<-1;W[5,12]<-1
+W[12,5]<-1;W[12,16]<-1
+W[16,12]<-1;W[16,3]<-1;W[16,17]<-1
+W[17,16]<-1;W[17,18]<-1;W[17,9]<-1
+W[18,1]<-1;W[18,17]<-1
+W[3,16]<-1;W[3,11]<-1
+W[11,3]<-1;W[11,15]<-1;W[11,10]<-1
+W[15,2]<-1;W[15,11]<-1
+W[2,4]<-1;W[2,15]<-1
+W[10,11]<-1;W[10,8]<-1;W[10,9]<-1
+W[9,10]<-1;W[9,13]<-1;W[9,17]<-1
+```
+
+### 4.1.2. Cálculo del indice de Moran
+
+```{r,comment=NA,fig.align='center',fig.width=6,fig.height=5}
+xp<-mean(x)
+#print(x)
+suma<-0 ; sum((x-xp)^2)
+
+for(i in 1:20){
+  for(j in 1:20){
+    suma<-suma+W[i,j]*(x[i]-xp)*(x[j]-xp)
+  }
+}
+
+# Indice de Moran
+20*suma/(sum(W)*sum((x-xp)^2))
+```
+
+El índice de Moran = 0.5088752, indica una autocorrelación espacial positiva moderada. Esto significa que las observaciones de la variable analizada (precipitación) tienen cierta tendencia a agruparse en vecindarios espaciales. Sin embargo, la fuerza de esta autocorrelación no es muy alta, ya que el valor está más próximo a 0 que a 1.Esto significa que las áreas cercanas entre sí tienden a tener valores de precipitación similares. En otras palabras, si en una determinada ubicación la precipitación es alta, es más probable que las áreas circundantes también tengan valores de precipitación altos.
+
+
+## 4.2. Modelo para La Triangulación de Delaunay
+
+Emplea la geometría computacional para generar una malla de triángulos a partir de un conjunto de puntos en el plano. Es una herramienta que permite analizar los patrones espaciales. Con la examinación de las formas triangulares es factible identificar valores atípicos. Si un punto se encuentra lejos de los triángulos circundantes o tiene una influencia anormalmente alta en sus vecinos, esto puede indicar un valor atípico o una observación inusual en el conjunto de datos.
+
+**Gráfico**
+```{r}
+plot(coords[,2],coords[,1],xlab="Longitude",ylab="Latitude",cex=0,las=1,bty="l")
+coords<-as.matrix(coords[,2:1])
+col.tri <- tri2nb(coords)
+plot(col.tri,coords,add=TRUE,col=3,cex=0.01)
+text(coords[,1],coords[,2],1:20,cex=1)
+title(main="La Triangulación de Delaunay")
+
+```
+
+```{r}
+# PRESENTA EL MAPA
+par(cex=0.7) # ajusta el tamaño de las etiquetas y los puntos en el gráfico
+
+PlotOnStaticMap(MyMap,mar = c(4, 4, 2, 2),axes = TRUE)
+
+# DETERMINA EL MODELO ESPACIAL
+rel <- tri2nb(puntos) 
+
+# SUPERPONE EL MODELO EN EL MAPA
+plot(rel,puntos, col="red",add=TRUE,lwd=3,cex=2) 
+title(main="Modelo de  Triangulación de Delaunay",col.main="blue")
+```
+
+
+### 4.2.1. Definición de la matriz de pesos
+
+```{r,comment=NA,fig.align='center',fig.width=6,fig.height=5}
+
+x<-estudio$precipitacion
+W<-rep(0,20*20) #20=#estaciones
+dim(W)<-c(20,20) #dimension de la matriz de pesos
+
+# Se asignan valores de 1 a las ubicaciones de la matriz W que representan conexiones entre observaciones vecinas.
+
+
+W[1,13]<-1;W[1,9]<-1;W[1,17]<-1;W[1,18]<-1;W[1,19]<-1;W[1,6]<-1
+W[2,4]<-1;W[2,14]<-1;W[2,5]<-1;W[2,12]<-1;W[2,3]<-1;W[2,11]<-1;W[2,15]<-1
+W[3,9]<-1;W[3,11]<-1;W[3,2]<-1;W[3,12]<-1;W[3,16]<-1;W[3,17]<-1
+W[4,8]<-1;W[4,15]<-1;W[4,2]<-1;W[4,14]<-1
+W[5,2]<-1;W[5,14]<-1;W[5,7]<-1;W[5,19]<-1;W[5,18]<-1;W[5,12]<-1
+W[6,1]<-1;W[6,19]<-1;W[6,20]<-1
+W[7,5]<-1;W[7,14]<-1;W[7,20]<-1;W[7,19]<-1
+W[8,4]<-1;W[8,15]<-1;W[8,10]<-1;W[8,13]<-1
+W[9,13]<-1;W[9,10]<-1;W[9,11]<-1;W[9,3]<-1;W[9,17]<-1;W[9,1]<-1
+W[10,13]<-1;W[10,8]<-1;W[10,15]<-1;W[10,11]<-1;W[10,9]<-1
+W[11,9]<-1;W[11,10]<-1;W[11,15]<-1;W[11,2]<-1;W[11,3]<-1
+W[12,3]<-1;W[12,2]<-1;W[12,5]<-1;W[12,18]<-1;W[12,16]
+W[13,8]<-1;W[13,10]<-1;W[13,9]<-1;W[13,1]<-1
+W[14,4]<-1;W[14,2]<-1;W[14,5]<-1;W[14,7]<-W[14,20]<-1
+W[15,4]<-1;W[15,2]<-1;W[15,11]<-1;W[15,10]<-1;W[15,8]<-1
+W[16,3]<-1;W[16,12]<-1;W[16,18]<-1;W[16,17]<-1
+W[17,9]<-1;W[17,3]<-1;W[17,16]<-1;W[17,18]<-1;W[17,1]<-1
+W[18,1]<-1;W[18,17]<-1;W[18,16]<-1;W[18,12]<-1;W[18,5]<-1;W[18,19]<-1
+W[19,1]<-1;W[19,18]<-1;W[19,5]<-1;W[19,7]<-1;W[19,20]<-1;W[19,6]<-1
+W[20,6]<-1;W[20,19]<-1;W[20,7]<-1;W[20,14]<-1
+
+
+```
+
+
+### 4.2.2. Cálculo del indice de Moran
+
+```{r,comment=NA,fig.align='center',fig.width=6,fig.height=5}
+xp<-mean(x)
+#print(x)
+suma<-0 ; sum((x-xp)^2)
+
+for(i in 1:20){
+  for(j in 1:20){
+    suma<-suma+W[i,j]*(x[i]-xp)*(x[j]-xp)
+  }
+}
+# Indice de Moran-triangulacion
+20*suma/(sum(W)*sum((x-xp)^2))
+
+```
+
+El valor positivo del índice de Moran (0.3295602) indica que existe una correlación espacial positiva moderada entre los valores de precipitación en diferentes ubicaciones dentro del modelo de triangulación de Delaunay. Esto sugiere que las áreas con altos niveles de precipitación tienden a estar cerca de otras áreas con altos niveles de precipitación, y las áreas con bajos niveles de precipitación tienden a estar cerca de otras áreas con bajos niveles de precipitación.
+
+En términos más simples, este resultado sugiere que la precipitación tiende a agruparse espacialmente, es decir, las áreas con condiciones similares de precipitación suelen estar cercanas unas a otras dentro del modelo de triangulación de Delaunay.
+
+
+## 4.3. Modelo de Gabriel
+
+Se basa en la construcción de un grafo de vecindad donde las conexiones entre puntos se definen en función de la distancia euclidiana entre ellos.
+
+En el modelo de Gabriel, se considera que dos puntos son vecinos si y solo si no existe otro punto en su vecindad inmediata que se encuentre más cerca de ellos que de sí mismos. Es decir, se establece una conexión directa entre dos puntos si no hay otro punto que esté más cerca de ellos en comparación con su distancia mutua.
+
+En un grafo de vecindad, los elementos del conjunto de datos se representan como nodos o vértices, y las conexiones entre los nodos indican las relaciones de vecindad o adyacencia entre ellos. Estas conexiones pueden ser representadas por aristas o líneas que unen los nodos.
+
+**Gráfico**
+```{r,comment=NA,fig.align='center',fig.width=6,fig.height=5}
+
+coords<-cbind(estudio[,c(3,4)]) 
+plot(coords[,2],coords[,1],xlab="Longitude",ylab="Latitude",cex=0,las=1,bty="l")
+coords<-as.matrix(coords[,2:1])
+col.gab <- graph2nb(gabrielneigh(coords),sym=TRUE)
+plot(col.gab,coords,add=TRUE,col="red",cex=0.01)
+text(coords[,1],coords[,2],1:20,cex=1)
+title(main="El modelo de Gabriel")
+
+```
+
+```{r}
+# PRESENTA EL MAPA
+par(cex=0.7) # ajusta el tamaño de las etiquetas y los puntos en el gráfico
+
+PlotOnStaticMap(MyMap,mar = c(4, 4, 2, 2),axes = TRUE)
+
+# DETERMINA EL MODELO ESPACIAL
+rel <- graph2nb(gabrielneigh(puntos),sym=TRUE)
+
+# SUPERPONE EL MODELO EN EL MAPA
+plot(rel,puntos, col="red",add=TRUE,lwd=3,cex=2) 
+title(main="Modelo de  Gabriel",col.main="blue")
+```
+
+### 4.3.1. Definición de la matriz de pesos
+
+```{r,comment=NA,fig.align='center',fig.width=6,fig.height=5}
+
+x<-estudio$precipitacion
+W<-rep(0,20*20) #20=#estaciones
+dim(W)<-c(20,20) #dimension de la matriz de pesos
+
+W[1,18]<-1;
+W[2,4]<-1;W[2,15]<-1
+W[3,9]<-1;W[3,11]<-1;W[3,16]<-1
+W[4,2]<-1
+W[5,12]<-1;W[5,19]<-1;W[5,7]<-1
+W[6,19]<-1;W[6,20]<-1
+W[7,5]<-1;W[7,19]<-1;W[7,20]<-1;W[7,14]<-1
+W[8,10]<-1;W[8,15]<-1
+W[9,13]<-1;W[9,10]<-1;W[9,3]<-1;W[9,17]<-1
+W[10,13]<-1;W[10,9]<-1;W[10,11]<-1;W[10,8]<-1
+W[11,3]<-1;W[11,10]<-1;W[11,5]<-1
+W[12,16]<-1;W[12,5]<-1
+W[13,9]<-1;W[13,10]<-1
+W[14,7]<-1
+W[15,2]<-1;W[15,8]<-1;W[15,11]<-1
+W[16,3]<-1;W[16,12]<-1;W[16,17]<-1
+W[17,18]<-1;W[17,9]<-1;W[17,16]<-1
+W[18,1]<-1;W[18,17]<-1
+W[19,5]<-1;W[19,6]<-1;W[19,7]<-1
+W[20,6]<-1;W[20,7]<-1
+
+```
+
+
+### 4.3.2. Cálculo del indice de Moran
+```{r}
+
+xp<-mean(x)
+#print(x)
+
+suma<-0 ; sum((x-xp)^2)
+
+for(i in 1:20){
+  for(j in 1:20){
+    suma<-suma+W[i,j]*(x[i]-xp)*(x[j]-xp)
+  }
+}
+# Indice de Moran-MODELO DE GABRIEL
+20*suma/(sum(W)*sum((x-xp)^2))  
+
+```
+
+Un índice de Moran positivo como  (0.4318926) indica una autocorrelación espacial positiva moderada a fuerte en el modelo de Gabriel para la variable de precipitación. Esto implica que las áreas cercanas tienen una mayor similitud en cuanto a los niveles de precipitación.
+
+
+## 4.4. Modelo de la esfera de Influencia
+
+Este modelo se basa en la idea de que las observaciones más cercanas a una ubicación en particular tienen una mayor influencia sobre esa ubicación en comparación con las observaciones más alejadas.
+
+El Modelo de la Esfera de Influencia permite evaluar la influencia local de cada observación sobre sus vecinos cercanos y ayuda a identificar patrones espaciales más detallados en los datos. También es útil para comprender cómo las observaciones individuales contribuyen a la correlación espacial global en un área determinada.
+
+
+```{r}
+
+coords<-cbind(estudio[,c(3,4)]) 
+plot(coords[,2],coords[,1],xlab="Longitude",ylab="Latitude",cex=0,las=1,bty="l")
+coords<-as.matrix(coords[,2:1])
+col.soi <- graph2nb(soi.graph(col.tri,coords),sym=TRUE)
+plot(col.soi, coords, col="blue",add=TRUE)
+text(coords[,1],coords[,2],1:20,cex=1)
+title(main="La esfera de Influencia")
+
+```
+
+```{r}
+# PRESENTA EL MAPA
+par(cex=0.7) # ajusta el tamaño de las etiquetas y los puntos en el gráfico
+
+PlotOnStaticMap(MyMap,mar = c(4, 4, 2, 2),axes = TRUE)
+
+# DETERMINA EL MODELO ESPACIAL
+rel <- graph2nb(soi.graph(col.tri,puntos),sym=TRUE)
+
+# SUPERPONE EL MODELO EN EL MAPA
+plot(rel,puntos, col="red",add=TRUE,lwd=3,cex=2) 
+title(main="Modelo de la esfera de influencia",col.main="blue")
+```
+
+### 4.4.1. Definición de la matriz de pesos
+
+
+```{r}
+
+x<-estudio$precipitacion
+W<-rep(0,20*20) #20=#estaciones
+dim(W)<-c(20,20) #dimension de la matriz de pesos
+
+W[1,17]<-1;W[1,18]<-1
+W[2,4]<-1
+W[3,12]<-1;W[3,16]<-1;W[3,17]<-1
+W[4,2]<-1
+W[5,12]<-1;W[5,7]<-1
+W[6,19]<-1;W[6,20]<-1
+W[7,19]<-1;W[7,20]<-1;W[7,5]<-1;W[7,14]<-1
+W[8,13]<-1;W[8,10]<-1
+W[9,10]<-1;W[9,13]<-1
+W[10,8]<-1;W[10,9]<-1;W[10,13]<-1;W[10,15]<-1;W[10,11]<-1
+W[11,10]<-1;W[11,15]<-1
+W[12,3]<-1;W[12,16]<-1;W[12,5]<-1
+W[13,8]<-1;W[13,10]<-1;W[13,9]<-1
+W[14,7]<-1
+W[15,10]<-1;W[15,11]<-1
+W[16,3]<-1;W[16,12]<-1;W[16,17]<-1
+W[17,3]<-1;W[17,16]<-1;W[17,18]<-1;W[17,1]<-1
+W[18,1]<-1;W[18,17]<-1
+W[19,7]<-1;W[19,6]<-1;W[19,20]<-1
+W[20,7]<-1;W[20,6]<-1;W[20,19]<-1
+
+```
+
+
+### 4.4.2. Cálculo del indice de Moran
+
+```{r}
+
+xp<-mean(x)
+#print(x)
+suma<-0 ; sum((x-xp)^2)
+
+for(i in 1:20){
+  for(j in 1:20){
+    suma<-suma+W[i,j]*(x[i]-xp)*(x[j]-xp)
+  }
+}
+
+# Indice de Moran
+20*suma/(sum(W)*sum((x-xp)^2))  
+
+```
+
+El valor positivo del índice de Moran (0.4037703) indica que existe una correlación espacial positiva moderada entre los valores de precipitación en las observaciones consideradas dentro de las esferas de influencia en el modelo. Esto significa que las áreas con altos niveles de precipitación tienden a estar rodeadas de otras áreas con altos niveles de precipitación, y las áreas con bajos niveles de precipitación tienden a estar rodeadas de otras áreas con bajos niveles de precipitación.
+
+
+
+# Años críticos 
+
+### Periodo (1982-1983)
+
+```{r}
+columnas<-c("year",	"mes",	"dia",	"prec",	"tmax",	"tmin")
+L01<-read.table("Ayabaca.txt"); L01$estacion=1
+L02<-read.table("bernal.txt"); L02$estacion=2
+L03<-read.table("Chulucanas.txt"); L03$estacion=3
+L04<-read.table("Chusis.txt"); L04$estacion=4
+L05<-read.table("Hacienda Bigote.txt"); L05$estacion=5
+L06<-read.table("Hacienda Sumaya.txt"); L06$estacion=6
+L07<-read.table("Huarmaca.txt"); L07$estacion=7
+L08<-read.table("La esperanza.txt"); L08$estacion=8
+L09<-read.table("LANCONES.txt"); L09$estacion=9
+L10<-read.table("MALLARES.txt"); L10$estacion=10
+L11<-read.table("Miraflores.txt"); L11$estacion=11
+L12<-read.table("Morropon.txt"); L12$estacion=12
+L13<-read.table("pananga.txt"); L13$estacion=13
+L14<-read.table("Porculla.txt"); L14$estacion=14
+L15<-read.table("San Miguel.txt"); L15$estacion=15
+L16<-read.table("San Pedro.txt"); L16$estacion=16
+L17<-read.table("Sapillica.txt"); L17$estacion=17
+L18<-read.table("Sausal de Culucan.txt"); L18$estacion=18
+L19<-read.table("Sondorillo.txt"); L19$estacion=19
+L20<-read.table("Tuluce.txt"); L20$estacion=20
+
+# captando desde enero 1975 hasta diciembre 2013
+R01<-L01[(L01[,1]>=1975 & L01[,1]< 2014),]
+R02<-L02[(L02[,1]>=1975 & L02[,1]< 2014),]
+R03<-L03[(L03[,1]>=1975 & L03[,1]< 2014),]
+R04<-L04[(L04[,1]>=1975 & L04[,1]< 2014),]
+R05<-L05[(L05[,1]>=1975 & L05[,1]< 2014),]
+R06<-L06[(L06[,1]>=1975 & L06[,1]< 2014),]
+R07<-L07[(L07[,1]>=1975 & L07[,1]< 2014),]
+R08<-L08[(L08[,1]>=1975 & L08[,1]< 2014),]
+R09<-L09[(L09[,1]>=1975 & L09[,1]< 2014),]
+R10<-L10[(L10[,1]>=1975 & L10[,1]< 2014),]
+R11<-L11[(L11[,1]>=1975 & L11[,1]< 2014),]
+R12<-L12[(L12[,1]>=1975 & L12[,1]< 2014),]
+R13<-L13[(L13[,1]>=1975 & L13[,1]< 2014),]
+R14<-L14[(L14[,1]>=1975 & L14[,1]< 2014),]
+R15<-L15[(L15[,1]>=1975 & L15[,1]< 2014),]
+R16<-L16[(L16[,1]>=1975 & L16[,1]< 2014),]
+R17<-L17[(L17[,1]>=1975 & L17[,1]< 2014),]
+R18<-L18[(L18[,1]>=1975 & L18[,1]< 2014),]
+R19<-L19[(L19[,1]>=1975 & L19[,1]< 2014),]
+R20<-L20[(L20[,1]>=1975 & L20[,1]< 2014),]
+```
+
+
+```{r}
+createSubset <- function(L) {
+  R <- list()
+  for (i in 1:length(L)) {
+    R[[i]] <- L[[i]][(L[[i]][, 1] >= 1982 & L[[i]][, 1] < 2001), ]
+  }
+  return(R)
+}
+
+R <- createSubset(list(L01, L02, L03,L04,L05,L06,L07,L08,L09,L09,L10,L11,
+                       L12,L13,L14,L15,L16,L17,L18,L19,L20))
+# creando en un solo data frame
+
+df1 <- do.call(rbind, R)
+
+```
+
+```{r}
+# Precipitacion ausente 0 negativo poner cero de precipitacion
+z<-is.na(df1[,4])
+df1[z,4]<-0
+x<-df1[,4]<0
+df1[x,4]<-0
+
+# Renombrar columnas
+colnames(df1) <- c("Año",	"Mes",	"Dia",	"Precipitación",	"Tmax",	"Tmin","Estación")
+head(df1)
+
+# Acumular la precipitacion por años y estacion
+library(agricolae)
+```
+
+
+
+```{r}
+# Acumular la precipitacion por años y estacion
+library(agricolae)
+AM<-agricolae::tapply.stat(df1[,4],df1[,c(1,7)],sum)
+MR<-matrix(AM[,3],nrow=19,ncol=20)
+colnames(MR)<-paste("Est",1:20,sep="-")
+rownames(MR)<-1982:2000
+#head(MR)
+TR<-agricolae::tapply.stat(df1[,4],df1[,c(7)],sum)
+B<-t(MR)
+#head(B)
+```
+
+Se realizará una comparación de los ídices de Morán obtenidos a partir de 4 modelos de correlación espacial
+
+```{r}
+### Modelo del vecino relativo
+B<-as.data.frame(B)
+# Precipitacion periodos 1982-1983
+B$periodo1<-B$`1982`+B$`1983`
+x<- B$periodo1
+xp<-mean(x,na.rm=TRUE)
+#print(x)
+
+estilos<-c("W","B","C","U","S")
+vecino_relativo<-c()
+for (i in estilos){
+  nb<-nb2listw(col.rel,style=i)
+  vecino_relativo[i]<-moran(B$periodo1,nb,length(col.rel),Szero(nb))$I
+}
+
+
+
+### El modelo de Gabriel
+estilos<-c("W","B","C","U","S")
+Gabriel<-c()
+for (i in estilos){
+  nb<-nb2listw(col.gab,style=i)
+  Gabriel[i]<-moran(B$periodo1,nb,length(col.gab),Szero(nb))$I
+}
+
+
+
+
+### Modelo de Triangulación de Delaunay
+Delaunay<-c()
+for (i in estilos){
+  nb<-nb2listw(col.tri,style=i)
+  Delaunay[i]<-moran(B$periodo1,nb,length(col.tri),Szero(nb))$I
+}
+
+
+
+### La esfera de Influencia
+esfera<-c()
+for (i in estilos){
+  nb<-nb2listw(col.soi,style=i)
+  esfera[i]<-moran(B$periodo1,nb,length(col.soi),Szero(nb))$I
+}
+
+
+data.frame(Delaunay,Gabriel,vecino_relativo,esfera)
+
+```
+
+Para el periodo 1982-1983,hay una correlacion inversa entre las estaciones.
+
+
+### Periodo (1990-1991)
+
+```{r}
+### Modelo del vecino relativo
+
+# Precipitacion periodos 1982-1983
+B$periodo2<-B$`1990`+B$`1991`
+x<- B$periodo2
+xp<-mean(x,na.rm=TRUE)
+#print(x)
+
+estilos<-c("W","B","C","U","S")
+vecino_relativo<-c()
+for (i in estilos){
+  nb<-nb2listw(col.rel,style=i)
+  vecino_relativo[i]<-moran(B$periodo2,nb,length(col.rel),Szero(nb))$I
+}
+
+
+
+### El modelo de Gabriel
+Gabriel<-c()
+for (i in estilos){
+  nb<-nb2listw(col.gab,style=i)
+  Gabriel[i]<-moran(B$periodo2,nb,length(col.gab),Szero(nb))$I
+}
+
+
+
+
+### Modelo de Triangulación de Delaunay
+Delaunay<-c()
+for (i in estilos){
+  nb<-nb2listw(col.tri,style=i)
+  Delaunay[i]<-moran(B$periodo2,nb,length(col.tri),Szero(nb))$I
+}
+
+
+
+### La esfera de Influencia
+esfera<-c()
+for (i in estilos){
+  nb<-nb2listw(col.soi,style=i)
+  esfera[i]<-moran(B$periodo2,nb,length(col.soi),Szero(nb))$I
+}
+
+
+data.frame(Delaunay,Gabriel,vecino_relativo,esfera)
+
+```
+
+
+
+
+### Periodo (1993-1996)
+
+```{r}
+### Modelo del vecino relativo
+
+# Precipitacion periodos 1993-1996
+B$periodo3<-B$`1993`+B$`1994`+B$`1995`+B$`1996`
+x<- B$periodo3
+xp<-mean(x,na.rm=TRUE)
+#print(x)
+
+estilos<-c("W","B","C","U","S")
+vecino_relativo<-c()
+for (i in estilos){
+  nb<-nb2listw(col.rel,style=i)
+  vecino_relativo[i]<-moran(B$periodo3,nb,length(col.rel),Szero(nb))$I
+}
+
+
+
+### El modelo de Gabriel
+Gabriel<-c()
+for (i in estilos){
+  nb<-nb2listw(col.gab,style=i)
+  Gabriel[i]<-moran(B$periodo3,nb,length(col.gab),Szero(nb))$I
+}
+
+
+
+
+### Modelo de Triangulación de Delaunay
+Delaunay<-c()
+for (i in estilos){
+  nb<-nb2listw(col.tri,style=i)
+  Delaunay[i]<-moran(B$periodo3,nb,length(col.tri),Szero(nb))$I
+}
+
+
+
+### La esfera de Influencia
+esfera<-c()
+for (i in estilos){
+  nb<-nb2listw(col.soi,style=i)
+  esfera[i]<-moran(B$periodo3,nb,length(col.soi),Szero(nb))$I
+}
+
+
+data.frame(Delaunay,Gabriel,vecino_relativo,esfera)
+
+```
+
+
+
+
+### Periodo (1997-1998)
+
+```{r}
+### Modelo del vecino relativo
+
+# Precipitacion periodos 1993-1996
+B$periodo4<-B$`1997`+B$`1998`
+x<- B$periodo4
+xp<-mean(x,na.rm=TRUE)
+#print(x)
+
+estilos<-c("W","B","C","U","S")
+vecino_relativo<-c()
+for (i in estilos){
+  nb<-nb2listw(col.rel,style=i)
+  vecino_relativo[i]<-moran(B$periodo4,nb,length(col.rel),Szero(nb))$I
+}
+
+
+
+### El modelo de Gabriel
+Gabriel<-c()
+for (i in estilos){
+  nb<-nb2listw(col.gab,style=i)
+  Gabriel[i]<-moran(B$periodo4,nb,length(col.gab),Szero(nb))$I
+}
+
+
+
+
+### Modelo de Triangulación de Delaunay
+Delaunay<-c()
+for (i in estilos){
+  nb<-nb2listw(col.tri,style=i)
+  Delaunay[i]<-moran(B$periodo4,nb,length(col.tri),Szero(nb))$I
+}
+
+
+
+### La esfera de Influencia
+esfera<-c()
+for (i in estilos){
+  nb<-nb2listw(col.soi,style=i)
+  esfera[i]<-moran(B$periodo4,nb,length(col.soi),Szero(nb))$I
+}
+
+
+data.frame(Delaunay,Gabriel,vecino_relativo,esfera)
+
+```
+
+
+### Periodo (1999-2000)
+
+```{r}
+### Modelo del vecino relativo
+
+# Precipitacion periodos 1993-1996
+B$periodo5<-B$`1999`+B$`2000`
+x<- B$periodo5
+xp<-mean(x,na.rm=TRUE)
+#print(x)
+
+estilos<-c("W","B","C","U","S")
+vecino_relativo<-c()
+for (i in estilos){
+  nb<-nb2listw(col.rel,style=i)
+  vecino_relativo[i]<-moran(B$periodo5,nb,length(col.rel),Szero(nb))$I
+}
+
+
+
+### El modelo de Gabriel
+Gabriel<-c()
+for (i in estilos){
+  nb<-nb2listw(col.gab,style=i)
+  Gabriel[i]<-moran(B$periodo5,nb,length(col.gab),Szero(nb))$I
+}
+
+
+
+
+### Modelo de Triangulación de Delaunay
+Delaunay<-c()
+for (i in estilos){
+  nb<-nb2listw(col.tri,style=i)
+  Delaunay[i]<-moran(B$periodo5,nb,length(col.tri),Szero(nb))$I
+}
+
+
+
+### La esfera de Influencia
+esfera<-c()
+for (i in estilos){
+  nb<-nb2listw(col.soi,style=i)
+  esfera[i]<-moran(B$periodo5,nb,length(col.soi),Szero(nb))$I
+}
+
+
+data.frame(Delaunay,Gabriel,vecino_relativo,esfera)
+
+```
+
+Para interpretar los índices de Moran, se pueden considerar los siguientes puntos:
+
+- Los valores positivos indican una autocorrelación espacial positiva, lo que implica que las áreas con altos valores de precipitación acumulada tienden a estar rodeadas por áreas con altos valores, y las áreas con bajos valores de precipitación acumulada tienden a estar rodeadas por áreas con bajos valores en función del estilo específico utilizado.
+
+- Los valores negativos indican una autocorrelación espacial negativa, lo que implica que las áreas con altos valores de precipitación acumulada tienden a estar rodeadas por áreas con bajos valores, y las áreas con bajos valores de precipitación acumulada tienden a estar rodeadas por áreas con altos valores en función del estilo específico utilizado.
+
+- Los valores cercanos a cero indican una autocorrelación espacial débil o no significativa, lo que sugiere que no hay un patrón espacial claro en los valores de precipitación acumulada en relación al estilo utilizado.
